@@ -344,14 +344,13 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
             # CPU
             elsif (exists $item->{CPU}) {
                 my $cpu;
-                if (open my $cpu_fh, '<', '/proc/cpuinfo') {
+                if (sysopen(my $cpu_fh, '/proc/cpuinfo', 0)) {
                     while (defined(my $cpu_line = <$cpu_fh>)) {
                         if (substr($cpu_line, 0, 10) eq 'model name') {
-                            ($cpu) = $cpu_line =~ /^model name\t: (.+)/s;
+                            $cpu = substr($cpu_line, 13);
                             last;
                         }
                     }
-                    close $cpu_fh;
                 }
                 $cpu //= `uname -p`;
                 $cpu = join(' ', split(' ', $cpu));
@@ -361,15 +360,18 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 
             # RAM
             elsif (exists $item->{RAM}) {
-                my $freeram   = 0;
-                my $totalram  = 0;
-                my $match_ram = qr/:\s+(\d+)/;
+                my $freeram  = 0;
+                my $totalram = 1;
 
-                open my $ram_fh, '<', '/proc/meminfo';
-                while (defined(my $ram_line = <$ram_fh>)) {
-                    $totalram = $1 / 1024 if $. == 1 and $ram_line =~ /$match_ram/o;
-                    $freeram += $1 / 1024 if $. > 1 and $. != 3 and $ram_line =~ /$match_ram/o;
-                    last if $. == 5;
+                if (sysopen(my $ram_fh, '/proc/meminfo', 0)) {
+                    while (defined(my $ram_line = <$ram_fh>)) {
+                        my (undef, $ammount) = split(' ', $ram_line);
+                        $. == 1 ? ($totalram = $ammount / 1024) : ($. > 1 && $. != 3) ? ($freeram += $ammount / 1024) : ();
+                        $. == 5 && last;
+                    }
+                }
+                else {
+                    next;
                 }
 
                 push @output,
@@ -378,7 +380,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 
             # SWAP
             elsif (exists $item->{SWAP}) {
-                open my $fh, '<', '/proc/swaps' or next;
+                sysopen(my $fh, '/proc/swaps', 0) or next;
                 scalar <$fh>;    # ignore the column names
                 my (undef, undef, $totalswap, $usedswap) = split(' ', scalar <$fh>);
                 push @output,
@@ -412,17 +414,21 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 
             # UPTIME
             elsif (exists $item->{UPTIME}) {
-                open my $uptime_fh, '<', '/proc/uptime';
-                my $uptime = <$uptime_fh>;
-                close $uptime_fh;
 
-                ($uptime) = $uptime =~ /^(\S+)/;
+                my $uptime;
+                if (sysopen(my $uptime_fh, '/proc/uptime', 0)) {
+                    local $/ = ' ';
+                    $uptime = <$uptime_fh>;
+                }
+                else {
+                    next;
+                }
 
-                my $day = int $uptime / 86400;
+                my $day = int($uptime / 86400);
                 $uptime %= 86400;
-                my $hours = int $uptime / 3600;
+                my $hours = int($uptime / 3600);
                 $uptime %= 3600;
-                my $min = sprintf('%02d', int $uptime / 60);
+                my $min = sprintf('%02d', int($uptime / 60));
                 my $sec = $uptime % 60;
 
                 $uptime = '';
@@ -585,8 +591,9 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
         }
     }
 
-    $output .= "\n";
     $output .= "\e[0m" if $CONFIG{USE_VALUES_COLOR};
+    $output .= "\n";
+
     print $output;
 }
 
