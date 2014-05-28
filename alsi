@@ -18,7 +18,7 @@
 #-------------------------------------------------------
 #  Appname: alsi
 #  Created on: 04 October 2010
-#  Latest edit on: 19 May 2014
+#  Latest edit on: 28 May 2014
 #  Website: http://trizen.googlecode.com
 #-------------------------------------------------------
 
@@ -182,11 +182,13 @@ sub get_total_size_color {
 
     sub format_partition {
         my ($name, $used, $total, $used_percent, $type) = @_;
+
+        $total ||= 1;
         $used_percent //= int($used / $total * 100);
 
         if ($CONFIG{USAGE_COLORS} or $CONFIG{USAGE_COLORS_BOLD}) {
             $tmp_clr = get_usage_color($used_percent);
-            $tmp_gcl = get_total_size_color();
+            $tmp_gcl //= get_total_size_color();
         }
 
         @_ == 5 || do {
@@ -382,6 +384,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
             elsif (exists $item->{SWAP}) {
                 sysopen(my $fh, '/proc/swaps', 0) or next;
                 scalar <$fh>;    # ignore the column names
+                next if eof($fh);
                 my (undef, undef, $totalswap, $usedswap) = split(' ', scalar <$fh>);
                 push @output,
                   sprintf($item->{SWAP}, $c2, $z, format_partition(undef, int($usedswap / 1024), int($totalswap / 1024)));
@@ -467,10 +470,13 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 
             # PACKAGES
             elsif (exists $item->{PACKAGES}) {
-                my $packages = 'Unknown';
+                my $packages;
                 if (opendir(my $dir_h, $CONFIG{PACKAGES_PATH})) {
                     $packages = () = readdir $dir_h;
                     $packages -= 2;
+                }
+                else {
+                    next;
                 }
 
                 push @output, sprintf($item->{PACKAGES}, $c2, $z, $packages);
@@ -564,7 +570,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
                           $c2, $z, ($ENV{USERNAME} // $ENV{LOGNAME} // getlogin() // (getpwuid($<))[0] // 'Unknown'));
             }
 
-            # COMAND
+            # COMMAND
             elsif (exists $item->{COMMAND} and ref $item->{COMMAND} eq 'ARRAY') {
                 push @output, sprintf($item->{COMMAND}[0], $c2, $z, `$item->{COMMAND}[1]`);
             }
@@ -619,7 +625,7 @@ INIT {
                USAGE_PRECENT_GREEN  => 50,
                DEFAULT_COLOR_NORMAL => 'blue',
                DEFAULT_COLOR_BOLD   => 'blue',
-               PS_COMMAND           => 'ps xc',
+               PS_COMMAND           => 'ps -A',
                DF_COMMAND           => 'df -Th -x sys -x tmpfs -x devtmpfs &>/dev/stdout',
                SCREENSHOT_COMMAND   => 'scrot -cd 5',
                GTK2_RC_FILE         => "$home_dir/.gtkrc-2.0",
