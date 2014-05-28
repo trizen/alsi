@@ -608,7 +608,7 @@ exec $CONFIG{SCREENSHOT_COMMAND} if $opt{take_screenshot};
 
 INIT {
     $appname = 'alsi';
-    $version = '0.4.6';
+    $version = '0.4.7';
     my $home_dir = $ENV{HOME} || $ENV{LOGDIR} || (getpwuid($<))[7] || `echo -n ~`;
     my $config_dir = $ENV{XDG_CONFIG_HOME} || "$home_dir/.config";
     my $alsi_config_dir = "$config_dir/$appname";
