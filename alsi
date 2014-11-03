@@ -348,7 +348,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
                 my $cpu;
                 if (sysopen(my $cpu_fh, '/proc/cpuinfo', 0)) {
                     while (defined(my $cpu_line = <$cpu_fh>)) {
-                        if (substr($cpu_line, 0, 10) eq 'model name') {
+                        if (!index($cpu_line, 'model name')) {
                             $cpu = substr($cpu_line, 13);
                             last;
                         }
