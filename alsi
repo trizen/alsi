@@ -727,6 +727,7 @@ scalar {
          'barewm'                => 'Bare WM',
          'beryl'                 => 'Beryl',
          'blackbox'              => 'Blackbox',
+         'bspwm'                 => 'bspwm',
          'clfswm'                => 'CLFS WM',
          'compiz'                => 'Compiz',
          'ctwm'                  => 'CTWM',
