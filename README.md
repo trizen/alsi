@@ -1,5 +1,11 @@
 A command-line system information tool for Arch Linux.
 
+![alsi](https://user-images.githubusercontent.com/614513/32417155-cb11a434-c25d-11e7-9bdb-5ec79f4f91d1.png)
+
+----
+
+### Options
+
 ```
 usage: alsi [options]
 
