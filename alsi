@@ -764,7 +764,7 @@ scalar {
          'pawm'                  => 'PAWM',
          'pekwm'                 => 'PekWM',
          'qlwm'                  => 'qLWM',
-         'qtile'                 => 'qTile',
+         'qtile'                 => 'Qtile',
          'quarkwm'               => 'QuarkWM',
          'ratpoison'             => 'ratpoison',
          'sawfish'               => 'Sawfish',
