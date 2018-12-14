@@ -474,6 +474,9 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
                 if (opendir(my $dir_h, $CONFIG{PACKAGES_PATH})) {
                     $packages = () = readdir $dir_h;
                     $packages -= 2;
+                    if (-e $CONFIG{PACKAGES_PATH} . '/ALPM_DB_VERSION') {
+                        $packages -= 1;
+                    }
                 }
                 else {
                     next;
