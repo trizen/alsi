@@ -19,7 +19,8 @@
 #  Appname: alsi
 #  Created on: 04 October 2010
 #  Latest edit on: 28 May 2014
-#  Website: http://trizen.googlecode.com
+#  Minor patches: 26 December 2018
+#  GitHub: https://github.com/trizen/alsi
 #-------------------------------------------------------
 
 my (%CONFIG, $appname, $version, $config_file);
@@ -292,7 +293,7 @@ $c2 .`                                 `+/$z\t
 LOGO
 }
 elsif ($opt{bellow_logo}) {
-    $arch_logo = <<"LOGO"
+    $arch_logo = <<"LOGO";
         $c2,$c1                       _     _ _
        $c2/$c1#$c2\\$c1        __ _ _ __ ___| |__ | (_)_ __  _   ___  __
       $c2/$c1###$c2\\$c1      / _` | '__/ __| '_ \\| | | '_ \\| | | \\ \\/ /
@@ -304,7 +305,7 @@ elsif ($opt{bellow_logo}) {
 LOGO
 }
 else {
-    $arch_logo = <<"LOGO"
+    $arch_logo = <<"LOGO";
                   $c1##$z\t\t\t
                  $c1#$c2##$c1#$z\t\t\t
                 $c1#$c2####$c1#$z\t\t\t
@@ -611,8 +612,8 @@ exec $CONFIG{SCREENSHOT_COMMAND} if $opt{take_screenshot};
 
 INIT {
     $appname = 'alsi';
-    $version = '0.4.7';
-    my $home_dir = $ENV{HOME} || $ENV{LOGDIR} || (getpwuid($<))[7] || `echo -n ~`;
+    $version = '0.4.8';
+    my $home_dir   = $ENV{HOME}            || $ENV{LOGDIR} || (getpwuid($<))[7] || `echo -n ~`;
     my $config_dir = $ENV{XDG_CONFIG_HOME} || "$home_dir/.config";
     my $alsi_config_dir = "$config_dir/$appname";
     $config_file = $alsi_config_dir . "/$appname.conf";
