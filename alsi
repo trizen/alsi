@@ -19,11 +19,240 @@
 #  Appname: alsi
 #  Created on: 04 October 2010
 #  Latest edit on: 28 May 2014
-#  Minor patches: 26 December 2018
+#  Minor patches: 08 August 2020
 #  GitHub: https://github.com/trizen/alsi
 #-------------------------------------------------------
 
-my (%CONFIG, $appname, $version, $config_file);
+use strict;
+
+my $appname = 'alsi';
+my $version = '0.4.9';
+
+my $home_dir   = $ENV{HOME}            || $ENV{LOGDIR} || (getpwuid($<))[7] || `echo -n ~`;
+my $config_dir = $ENV{XDG_CONFIG_HOME} || "$home_dir/.config";
+
+my $alsi_config_dir = "$config_dir/$appname";
+my $config_file     = $alsi_config_dir . "/$appname.conf";
+
+my %CONFIG = (
+              ALSI_VERSION         => $version,
+              USE_VALUES_COLOR     => 0,
+              USE_LOGO_FROM_FILE   => 0,
+              USAGE_COLORS         => 0,
+              USAGE_COLORS_BOLD    => 0,
+              USAGE_PRECENT_RED    => 100,
+              USAGE_PRECENT_YELLOW => 85,
+              USAGE_PRECENT_GREEN  => 50,
+              DEFAULT_COLOR_NORMAL => 'blue',
+              DEFAULT_COLOR_BOLD   => 'blue',
+              PS_COMMAND           => 'ps -A',
+              DF_COMMAND           => 'df -Th -x sys -x tmpfs -x devtmpfs &>/dev/stdout',
+              SCREENSHOT_COMMAND   => 'scrot -cd 5',
+              GTK2_RC_FILE         => "$home_dir/.gtkrc-2.0",
+              GTK3_RC_FILE         => "$config_dir/gtk-3.0/settings.ini",
+              LOGO_FILE            => "$alsi_config_dir/alsi.logo",
+              COLORS_FILE          => "$alsi_config_dir/$appname.colors",
+              OUTPUT_FILE          => "$alsi_config_dir/alsi.output",
+              WM_FILE              => "$alsi_config_dir/alsi.wm",
+              DE_FILE              => "$alsi_config_dir/alsi.de",
+              PACKAGES_PATH        => '/var/lib/pacman/local/',
+             );
+
+# Creating config unless it exists
+if (not -e $config_file or not -e $alsi_config_dir) {
+    require File::Path;
+    File::Path::make_path($alsi_config_dir);
+    write_config_to_file();
+}
+
+apply_configuration() unless grep { $_ eq '--noconfig' } @ARGV;
+
+unless (-e $CONFIG{COLORS_FILE}) {
+    save_plain($CONFIG{COLORS_FILE}, <<'COLORS');
+#!/usr/bin/perl
+
+# Colors for alsi
+
+scalar {
+         black   => {normal => "\e[0;30m", bold => "\e[1;30m"},
+         red     => {normal => "\e[0;31m", bold => "\e[1;31m"},
+         green   => {normal => "\e[0;32m", bold => "\e[1;32m"},
+         yellow  => {normal => "\e[0;33m", bold => "\e[1;33m"},
+         default => {normal => "\e[0;34m", bold => "\e[1;34m"},
+         blue    => {normal => "\e[0;34m", bold => "\e[1;34m"},
+         purple  => {normal => "\e[0;35m", bold => "\e[1;35m"},
+         cyan    => {normal => "\e[0;36m", bold => "\e[1;36m"},
+         white   => {normal => "\e[0;37m", bold => "\e[1;37m"},
+         reset   => "\e[0m",
+}
+COLORS
+}
+
+unless (-e $CONFIG{OUTPUT_FILE}) {
+    save_plain($CONFIG{OUTPUT_FILE}, <<'OUTPUT_FILE');
+#!/usr/bin/perl
+
+# '%sTitle:%s %s'
+#  |    \   \  ` Value
+#  \     \   `-- End of BC (or start of NC)
+#   BC    ` Label
+
+# NC = normal color (color1)
+# BC = bold color   (color2)
+
+#-- Other valid options are:
+# USERNAME   - ex: {USERNAME => '%sUsername:%s %s'},
+# CPU_LOAD   - ex: {CPU_LOAD => '%sCPU load average:%s %s'},
+# OTHER      - ex: {OTHER => '%sResolution:%s 1024x768'},
+# COMMAND    - ex: {COMMAND => ['%sBinaries:%s %s', 'ls /usr/bin | wc -l']},
+# HARDCODED  - ex: {HARDCODED => "\e[1;37m\e[41mTHIS IS ALSI\e[0m"},
+
+# GTK3_THEME      - ex: {GTK3_THEME      => '%sGTK3 theme:%s %s'},
+# GTK3_ICON_THEME - ex: {GTK3_ICON_THEME => '%sGTK3 icon theme:%s %s'},
+# GTK3_FONT_NAME  - ex: {GTK3_FONT_NAME  => '%sGTK3 font name:%s %s'},
+
+[
+    {OS       => '%sOS:%s %s'},          # Operating system
+    {HOSTNAME => '%sHostname:%s %s'},    # Hostname
+    {UPTIME   => '%sUptime:%s %s'},      # Uptime
+    {KERNEL   => '%sKernel:%s %s'},      # Kernel version
+    {SHELL    => '%sShell:%s %s'},       # Shell
+    {PACKAGES => '%sPackages:%s %s'},    # Number of installed packages
+    {WM_DE    => '%s%s:%s %s'},          # Window Manager or Desktop Environment
+
+    {GTK2_THEME      => '%sGTK2 theme:%s %s'},         # Gtk2 theme
+    {GTK2_ICON_THEME => '%sGTK2 icon theme:%s %s'},    # Gtk2 icon theme
+    {GTK2_FONT_NAME  => '%sGTK2 font name:%s %s'},     # Gtk2 font name
+
+    {RAM        => '%sRAM:%s %s'},                # RAM usage
+    {SWAP       => '%sSWAP:%s %s'},               # SWAP usage
+    {CPU        => '%sCPU:%s %s'},                # CPU name
+    {PARTITIONS => undef},                        # Partitions goes here
+]
+OUTPUT_FILE
+}
+
+unless (-e $CONFIG{WM_FILE}) {
+    save_plain($CONFIG{WM_FILE}, <<'WM_FILE');
+#!/usr/bin/perl
+
+# PROCESS_NAME  =>  WINDOW_MANAGER_NAME
+
+scalar {
+         '2wm'                   => '2wm',
+         '9wm'                   => '9wm',
+         'afterstep'             => 'AfterStep',
+         'antiwm'                => 'AntiWM',
+         'awesome'               => 'Awesome',
+         'barewm'                => 'Bare WM',
+         'beryl'                 => 'Beryl',
+         'blackbox'              => 'Blackbox',
+         'bspwm'                 => 'bspwm',
+         'clfswm'                => 'CLFS WM',
+         'compiz'                => 'Compiz',
+         'ctwm'                  => 'CTWM',
+         'cwm'                   => 'CWM',
+         'dswm'                  => 'DSWM',
+         'dwm'                   => 'DWM',
+         'echinus'               => 'Echinus',
+         'enlightenment'         => 'Enlightenment',
+         'euclid'                => 'Euclid',
+         'evil-wm'               => 'EvilWM',
+         'evilpoison'            => 'EviL Poison',
+         'fluxbox'               => 'Fluxbox',
+         'flwm'                  => 'FLWM',
+         'fvwm'                  => 'FVWM',
+         'hackedbox'             => 'Hackedbox',
+         'hildon-desktop'        => 'Matchbox',
+         'i3'                    => 'i3',
+         'icewm'                 => 'IceWM',
+         'ion-3'                 => 'Ion3',
+         'ion3'                  => 'Ion3',
+         'jwm'                   => 'JWM',
+         'karmen'                => 'Karmen',
+         'kwin'                  => 'Kwin',
+         'larswm'                => 'Lars WM',
+         'lewm'                  => 'LEWM',
+         'lwm'                   => 'LWM',
+         'matwm2'                => 'matWM2',
+         'metacity'              => 'Metacity',
+         'musca'                 => 'Musca',
+         'notion'                => 'Notion',
+         'openbox'               => 'Openbox',
+         'openbox-gnome-session' => 'Openbox (GNOME session)',
+         'openbox-kde-session'   => 'Openbox (KDE session)',
+         'pawm'                  => 'PAWM',
+         'pekwm'                 => 'PekWM',
+         'qlwm'                  => 'qLWM',
+         'qtile'                 => 'Qtile',
+         'quarkwm'               => 'QuarkWM',
+         'ratpoison'             => 'ratpoison',
+         'sawfish'               => 'Sawfish',
+         'scrot-wm'              => 'ScrotWM',
+         'scrotwm'               => 'ScrotWM',
+         'sithwm'                => 'SithWM',
+         'stumpwm'               => 'StumpWM',
+         'subtle'                => 'Subtle',
+         'swm'                   => 'SWM',
+         'tinywm'                => 'TinyWM',
+         'tritium'               => 'Tritium',
+         'twm'                   => 'twm',
+         'velox'                 => 'Velox',
+         'vtwm'                  => 'VtWM',
+         'vwm'                   => 'VWM',
+         'w9wm'                  => 'w9wm',
+         'weewm'                 => 'WeeWM',
+         'windowmaker'           => 'WindowMaker',
+         'windwm'                => 'WindWM',
+         'wmaker'                => 'WindowMaker',
+         'wmfs'                  => 'Wmfs',
+         'WMFS'                  => 'WMFS',
+         'wmii'                  => 'wmii',
+         'wmii36'                => 'wmii36',
+         'xmonad'                => 'xmonad',
+         'yeahwm'                => 'YeahWM',
+}
+WM_FILE
+}
+
+unless (-e $CONFIG{DE_FILE}) {
+    save_plain($CONFIG{DE_FILE}, <<'DE_FILE');
+#!/usr/bin/perl
+
+# PROCESS_NAME  =>  DESKTOP_ENVIRONMENT_NAME
+
+scalar {
+         'gnome-session' => 'GNOME',
+         'kdm'           => 'KDE',
+         'ksmserver'     => 'KDE',
+         'lxsession'     => 'LXDE',
+         'xfce4-session' => 'XFCE4',
+         'xfwm4'         => 'XFCE4',
+}
+DE_FILE
+}
+
+unless (-e $CONFIG{LOGO_FILE}) {
+    save_plain($CONFIG{LOGO_FILE}, <<'LOGO');
+    $c1                               Y\     /Y\t\t
+    $c1                               | \ _ / |\t\t
+    $c1         _____                 | =(_)= |\t\t
+    $c1     ,-~"     "~-.           ,-~\/^ ^\/~-.\t\t
+    $c1   ,^ ___     ___ ^.       ,^ ___     ___ ^.\t
+    $c1  / .^   ^. .^   ^. \     / .^   ^. .^   ^. \\\t
+    $c1 Y  l    O! l    O!  Y   Y  lo    ! lo    !  Y\t
+    $c1 l_ `.___.' `.___.' _[   l_ `.___.' `.___.' _[\t
+    $c1 l^~"-------------"~^I   l^~"-------------"~^I\t
+    $c1 !\,               ,/!   !                   !\t
+    $c1  \ ~-.,_______,.-~ /     \                 /\t
+    $c1   ^.             .^       ^.             .^\t
+    $c1     "-.._____.,-"           "-.._____.,-"\t\t
+    \t\t\t\t\t\t\t
+    $c2        WHY DOES THE LOGO FOR GENTOO LINUX\t\t
+    \t\t\t\t\t\t\t
+    $c2           LOOK LIKE A RETARDED PAC-MAN?\t\t$z
+LOGO
+}
 
 sub help {
     print <<"HELP";
@@ -539,7 +768,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 
                     my $orig_mnt = $mountpoint;
                     $mountpoint =
-                        $mountpoint eq '/' ? 'Root'
+                        $mountpoint eq '/'      ? 'Root'
                       : $mountpoint =~ m{^.*/}s ? ucfirst substr($mountpoint, $+[0])
                       :                           ucfirst $mountpoint;
 
@@ -608,236 +837,7 @@ my $config_array = do $CONFIG{OUTPUT_FILE};
 }
 
 save_hash($config_file, \%CONFIG) if $opt{update_config};
-exec $CONFIG{SCREENSHOT_COMMAND} if $opt{take_screenshot};
-
-INIT {
-    $appname = 'alsi';
-    $version = '0.4.8';
-    my $home_dir   = $ENV{HOME}            || $ENV{LOGDIR} || (getpwuid($<))[7] || `echo -n ~`;
-    my $config_dir = $ENV{XDG_CONFIG_HOME} || "$home_dir/.config";
-    my $alsi_config_dir = "$config_dir/$appname";
-    $config_file = $alsi_config_dir . "/$appname.conf";
-
-    %CONFIG = (
-               ALSI_VERSION         => $version,
-               USE_VALUES_COLOR     => 0,
-               USE_LOGO_FROM_FILE   => 0,
-               USAGE_COLORS         => 0,
-               USAGE_COLORS_BOLD    => 0,
-               USAGE_PRECENT_RED    => 100,
-               USAGE_PRECENT_YELLOW => 85,
-               USAGE_PRECENT_GREEN  => 50,
-               DEFAULT_COLOR_NORMAL => 'blue',
-               DEFAULT_COLOR_BOLD   => 'blue',
-               PS_COMMAND           => 'ps -A',
-               DF_COMMAND           => 'df -Th -x sys -x tmpfs -x devtmpfs &>/dev/stdout',
-               SCREENSHOT_COMMAND   => 'scrot -cd 5',
-               GTK2_RC_FILE         => "$home_dir/.gtkrc-2.0",
-               GTK3_RC_FILE         => "$config_dir/gtk-3.0/settings.ini",
-               LOGO_FILE            => "$alsi_config_dir/alsi.logo",
-               COLORS_FILE          => "$alsi_config_dir/$appname.colors",
-               OUTPUT_FILE          => "$alsi_config_dir/alsi.output",
-               WM_FILE              => "$alsi_config_dir/alsi.wm",
-               DE_FILE              => "$alsi_config_dir/alsi.de",
-               PACKAGES_PATH        => '/var/lib/pacman/local/',
-              );
-
-    # Creating config unless it exists
-    if (not -e $config_file or not -e $alsi_config_dir) {
-        require File::Path;
-        File::Path::make_path($alsi_config_dir);
-        write_config_to_file();
-    }
-
-    apply_configuration() unless grep { $_ eq '--noconfig' } @ARGV;
-
-    unless (-e $CONFIG{COLORS_FILE}) {
-        save_plain($CONFIG{COLORS_FILE}, <<'COLORS');
-#!/usr/bin/perl
-
-# Colors for alsi
-
-scalar {
-         black   => {normal => "\e[0;30m", bold => "\e[1;30m"},
-         red     => {normal => "\e[0;31m", bold => "\e[1;31m"},
-         green   => {normal => "\e[0;32m", bold => "\e[1;32m"},
-         yellow  => {normal => "\e[0;33m", bold => "\e[1;33m"},
-         default => {normal => "\e[0;34m", bold => "\e[1;34m"},
-         blue    => {normal => "\e[0;34m", bold => "\e[1;34m"},
-         purple  => {normal => "\e[0;35m", bold => "\e[1;35m"},
-         cyan    => {normal => "\e[0;36m", bold => "\e[1;36m"},
-         white   => {normal => "\e[0;37m", bold => "\e[1;37m"},
-         reset   => "\e[0m",
-}
-COLORS
-    }
-
-    unless (-e $CONFIG{OUTPUT_FILE}) {
-        save_plain($CONFIG{OUTPUT_FILE}, <<'OUTPUT_FILE');
-#!/usr/bin/perl
-
-# '%sTitle:%s %s'
-#  |    \   \  ` Value
-#  \     \   `-- End of BC (or start of NC)
-#   BC    ` Label
-
-# NC = normal color (color1)
-# BC = bold color   (color2)
-
-#-- Other valid options are:
-# USERNAME   - ex: {USERNAME => '%sUsername:%s %s'},
-# CPU_LOAD   - ex: {CPU_LOAD => '%sCPU load average:%s %s'},
-# OTHER      - ex: {OTHER => '%sResolution:%s 1024x768'},
-# COMMAND    - ex: {COMMAND => ['%sBinaries:%s %s', 'ls /usr/bin | wc -l']},
-# HARDCODED  - ex: {HARDCODED => "\e[1;37m\e[41mTHIS IS ALSI\e[0m"},
-
-# GTK3_THEME      - ex: {GTK3_THEME      => '%sGTK3 theme:%s %s'},
-# GTK3_ICON_THEME - ex: {GTK3_ICON_THEME => '%sGTK3 icon theme:%s %s'},
-# GTK3_FONT_NAME  - ex: {GTK3_FONT_NAME  => '%sGTK3 font name:%s %s'},
-
-[
-    {OS       => '%sOS:%s %s'},          # Operating system
-    {HOSTNAME => '%sHostname:%s %s'},    # Hostname
-    {UPTIME   => '%sUptime:%s %s'},      # Uptime
-    {KERNEL   => '%sKernel:%s %s'},      # Kernel version
-    {SHELL    => '%sShell:%s %s'},       # Shell
-    {PACKAGES => '%sPackages:%s %s'},    # Number of installed packages
-    {WM_DE    => '%s%s:%s %s'},          # Window Manager or Desktop Environment
-
-    {GTK2_THEME      => '%sGTK2 theme:%s %s'},         # Gtk2 theme
-    {GTK2_ICON_THEME => '%sGTK2 icon theme:%s %s'},    # Gtk2 icon theme
-    {GTK2_FONT_NAME  => '%sGTK2 font name:%s %s'},     # Gtk2 font name
-
-    {RAM        => '%sRAM:%s %s'},                # RAM usage
-    {SWAP       => '%sSWAP:%s %s'},               # SWAP usage
-    {CPU        => '%sCPU:%s %s'},                # CPU name
-    {PARTITIONS => undef},                        # Partitions goes here
-]
-OUTPUT_FILE
-    }
-
-    unless (-e $CONFIG{WM_FILE}) {
-        save_plain($CONFIG{WM_FILE}, <<'WM_FILE');
-#!/usr/bin/perl
-
-# PROCESS_NAME  =>  WINDOW_MANAGER_NAME
-
-scalar {
-         '2wm'                   => '2wm',
-         '9wm'                   => '9wm',
-         'afterstep'             => 'AfterStep',
-         'antiwm'                => 'AntiWM',
-         'awesome'               => 'Awesome',
-         'barewm'                => 'Bare WM',
-         'beryl'                 => 'Beryl',
-         'blackbox'              => 'Blackbox',
-         'bspwm'                 => 'bspwm',
-         'clfswm'                => 'CLFS WM',
-         'compiz'                => 'Compiz',
-         'ctwm'                  => 'CTWM',
-         'cwm'                   => 'CWM',
-         'dswm'                  => 'DSWM',
-         'dwm'                   => 'DWM',
-         'echinus'               => 'Echinus',
-         'enlightenment'         => 'Enlightenment',
-         'euclid'                => 'Euclid',
-         'evil-wm'               => 'EvilWM',
-         'evilpoison'            => 'EviL Poison',
-         'fluxbox'               => 'Fluxbox',
-         'flwm'                  => 'FLWM',
-         'fvwm'                  => 'FVWM',
-         'hackedbox'             => 'Hackedbox',
-         'hildon-desktop'        => 'Matchbox',
-         'i3'                    => 'i3',
-         'icewm'                 => 'IceWM',
-         'ion-3'                 => 'Ion3',
-         'ion3'                  => 'Ion3',
-         'jwm'                   => 'JWM',
-         'karmen'                => 'Karmen',
-         'kwin'                  => 'Kwin',
-         'larswm'                => 'Lars WM',
-         'lewm'                  => 'LEWM',
-         'lwm'                   => 'LWM',
-         'matwm2'                => 'matWM2',
-         'metacity'              => 'Metacity',
-         'musca'                 => 'Musca',
-         'notion'                => 'Notion',
-         'openbox'               => 'Openbox',
-         'openbox-gnome-session' => 'Openbox (GNOME session)',
-         'openbox-kde-session'   => 'Openbox (KDE session)',
-         'pawm'                  => 'PAWM',
-         'pekwm'                 => 'PekWM',
-         'qlwm'                  => 'qLWM',
-         'qtile'                 => 'Qtile',
-         'quarkwm'               => 'QuarkWM',
-         'ratpoison'             => 'ratpoison',
-         'sawfish'               => 'Sawfish',
-         'scrot-wm'              => 'ScrotWM',
-         'scrotwm'               => 'ScrotWM',
-         'sithwm'                => 'SithWM',
-         'stumpwm'               => 'StumpWM',
-         'subtle'                => 'Subtle',
-         'swm'                   => 'SWM',
-         'tinywm'                => 'TinyWM',
-         'tritium'               => 'Tritium',
-         'twm'                   => 'twm',
-         'velox'                 => 'Velox',
-         'vtwm'                  => 'VtWM',
-         'vwm'                   => 'VWM',
-         'w9wm'                  => 'w9wm',
-         'weewm'                 => 'WeeWM',
-         'windowmaker'           => 'WindowMaker',
-         'windwm'                => 'WindWM',
-         'wmaker'                => 'WindowMaker',
-         'wmfs'                  => 'Wmfs',
-         'WMFS'                  => 'WMFS',
-         'wmii'                  => 'wmii',
-         'wmii36'                => 'wmii36',
-         'xmonad'                => 'xmonad',
-         'yeahwm'                => 'YeahWM',
-}
-WM_FILE
-    }
-
-    unless (-e $CONFIG{DE_FILE}) {
-        save_plain($CONFIG{DE_FILE}, <<'DE_FILE');
-#!/usr/bin/perl
-
-# PROCESS_NAME  =>  DESKTOP_ENVIRONMENT_NAME
-
-scalar {
-         'gnome-session' => 'GNOME',
-         'kdm'           => 'KDE',
-         'ksmserver'     => 'KDE',
-         'lxsession'     => 'LXDE',
-         'xfce4-session' => 'XFCE4',
-         'xfwm4'         => 'XFCE4',
-}
-DE_FILE
-    }
-
-    unless (-e $CONFIG{LOGO_FILE}) {
-        save_plain($CONFIG{LOGO_FILE}, <<'LOGO');
-    $c1                               Y\     /Y\t\t
-    $c1                               | \ _ / |\t\t
-    $c1         _____                 | =(_)= |\t\t
-    $c1     ,-~"     "~-.           ,-~\/^ ^\/~-.\t\t
-    $c1   ,^ ___     ___ ^.       ,^ ___     ___ ^.\t
-    $c1  / .^   ^. .^   ^. \     / .^   ^. .^   ^. \\\t
-    $c1 Y  l    O! l    O!  Y   Y  lo    ! lo    !  Y\t
-    $c1 l_ `.___.' `.___.' _[   l_ `.___.' `.___.' _[\t
-    $c1 l^~"-------------"~^I   l^~"-------------"~^I\t
-    $c1 !\,               ,/!   !                   !\t
-    $c1  \ ~-.,_______,.-~ /     \                 /\t
-    $c1   ^.             .^       ^.             .^\t
-    $c1     "-.._____.,-"           "-.._____.,-"\t\t
-    \t\t\t\t\t\t\t
-    $c2        WHY DOES THE LOGO FOR GENTOO LINUX\t\t
-    \t\t\t\t\t\t\t
-    $c2           LOOK LIKE A RETARDED PAC-MAN?\t\t$z
-LOGO
-    }
-}
+exec $CONFIG{SCREENSHOT_COMMAND}  if $opt{take_screenshot};
 
 sub save_hash {
     my ($file, $config) = @_;
@@ -847,7 +847,14 @@ sub save_hash {
 
 HEAD
     require Data::Dump;
-    return save_plain($file, $header . 'scalar ' . Data::Dump::dump($config) . "\n");
+    my $txt = Data::Dump::dump($config);
+
+    # Replace the home directory with $ENV{HOME}
+    if (defined($ENV{HOME}) and $home_dir eq $ENV{HOME}) {
+        $txt =~ s/\Q$home_dir\E/\$ENV{HOME}/g;
+    }
+
+    return save_plain($file, $header . 'scalar ' . $txt . "\n");
 }
 
 sub save_plain {
